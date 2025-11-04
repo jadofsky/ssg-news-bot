@@ -1,67 +1,75 @@
 // bot.js
-// ---------------------------------------------
-// SSG News Bot - Discord + Express API
-// Fetches latest channel messages and serves
-// them via /api/highlights for your website
-// ---------------------------------------------
+// ------------------------------------------------------
+// SimSportsGaming Discord News Bot
+// Fetches messages from a specified channel and serves
+// them as JSON to your website via an API endpoint.
+// ------------------------------------------------------
 
 import express from "express";
+import { Client, GatewayIntentBits } from "discord.js";
 import cors from "cors";
 import dotenv from "dotenv";
-import { Client, GatewayIntentBits } from "discord.js";
 
 dotenv.config();
 
-// --- Setup Express ---
 const app = express();
-const port = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3000;
 
-// ✅ Allow all domains to fetch the highlights feed
+// Middleware
 app.use(cors());
+app.use(express.json());
 
-// --- Setup Discord Client ---
+// Initialize Discord bot
 const client = new Client({
-  intents: [
-    GatewayIntentBits.Guilds,
-    GatewayIntentBits.GuildMessages,
-    GatewayIntentBits.MessageContent,
-  ],
+  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent],
 });
 
-const channelId = process.env.CHANNEL_ID;
+// Global cache for messages
 let cachedMessages = [];
 
-// --- When Bot is Ready ---
-client.once("clientReady", async () => {
+// ✅ When the bot is ready
+client.once("ready", () => {
   console.log(`✅ Logged in as ${client.user.tag}`);
-  await cacheMessages();
+  fetchMessages(); // Fetch on startup
+  // Refresh every 5 minutes
+  setInterval(fetchMessages, 5 * 60 * 1000);
 });
 
-// --- Function to Fetch Latest Messages ---
-async function cacheMessages() {
+// ✅ Function to fetch recent messages from your news channel
+async function fetchMessages() {
   try {
+    const channelId = process.env.DISCORD_CHANNEL_ID; // stored securely in Render
     const channel = await client.channels.fetch(channelId);
+
+    if (!channel || !channel.isTextBased()) {
+      console.error("❌ Invalid or inaccessible channel.");
+      return;
+    }
+
     const messages = await channel.messages.fetch({ limit: 10 });
+
     cachedMessages = Array.from(messages.values()).map((msg) => ({
       author: msg.author.username,
+      avatar: msg.author.displayAvatarURL({ size: 64 }),
       content: msg.content,
       timestamp: msg.createdAt,
     }));
+
     console.log(`Cached ${cachedMessages.length} messages`);
   } catch (err) {
-    console.error("❌ Error fetching messages:", err);
+    console.error("Error fetching messages:", err);
   }
 }
 
-// --- API Endpoint ---
+// ✅ API endpoint to serve highlights
 app.get("/api/highlights", (req, res) => {
   res.json(cachedMessages);
 });
 
-// --- Start Express Server ---
-app.listen(port, () => {
-  console.log(`🌐 Web server running at http://localhost:${port}`);
+// ✅ Start Express server
+app.listen(PORT, () => {
+  console.log(`🌐 Web server running at http://localhost:${PORT}`);
 });
 
-// --- Log into Discord ---
-client.login(process.env.DISCORD_TOKEN);
+// ✅ Log in to Discord
+client.login(process.env.DISCORD_BOT_TOKEN);

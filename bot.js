@@ -49,11 +49,12 @@ async function fetchMessages() {
     const messages = await channel.messages.fetch({ limit: 10 });
 
     cachedMessages = Array.from(messages.values()).map((msg) => ({
-      author: msg.author.username,
-      avatar: msg.author.displayAvatarURL({ size: 64 }),
-      content: msg.content,
-      timestamp: msg.createdAt,
-    }));
+  author: msg.author.username,
+  avatar: msg.author.displayAvatarURL({ size: 64 }),
+  content: msg.content,
+  timestamp: msg.createdAt,
+}));
+
 
     console.log(`Cached ${cachedMessages.length} messages`);
   } catch (err) {

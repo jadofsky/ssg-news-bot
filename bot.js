@@ -1,56 +1,67 @@
 // bot.js
-import 'dotenv/config';
-import { Client, GatewayIntentBits } from 'discord.js';
-import express from 'express';
+// ---------------------------------------------
+// SSG News Bot - Discord + Express API
+// Fetches latest channel messages and serves
+// them via /api/highlights for your website
+// ---------------------------------------------
 
+import express from "express";
+import cors from "cors";
+import dotenv from "dotenv";
+import { Client, GatewayIntentBits } from "discord.js";
+
+dotenv.config();
+
+// --- Setup Express ---
 const app = express();
-const PORT = process.env.PORT || 3000;
-const CHANNEL_ID = '1004603096078487642'; // your SSG Baseball News channel
+const port = process.env.PORT || 3000;
 
+// ✅ Allow all domains to fetch the highlights feed
+app.use(cors());
+
+// --- Setup Discord Client ---
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMessages,
-    GatewayIntentBits.MessageContent
-  ]
+    GatewayIntentBits.MessageContent,
+  ],
 });
 
-let messagesCache = [];
+const channelId = process.env.CHANNEL_ID;
+let cachedMessages = [];
 
-client.once('ready', async () => {
+// --- When Bot is Ready ---
+client.once("clientReady", async () => {
   console.log(`✅ Logged in as ${client.user.tag}`);
+  await cacheMessages();
+});
 
+// --- Function to Fetch Latest Messages ---
+async function cacheMessages() {
   try {
-    const channel = await client.channels.fetch(CHANNEL_ID);
-    const fetched = await channel.messages.fetch({ limit: 10 });
-    messagesCache = fetched.map(msg => ({
+    const channel = await client.channels.fetch(channelId);
+    const messages = await channel.messages.fetch({ limit: 10 });
+    cachedMessages = Array.from(messages.values()).map((msg) => ({
       author: msg.author.username,
       content: msg.content,
-      timestamp: msg.createdAt
+      timestamp: msg.createdAt,
     }));
-    console.log(`Cached ${messagesCache.length} messages`);
+    console.log(`Cached ${cachedMessages.length} messages`);
   } catch (err) {
-    console.error('Error fetching channel:', err);
+    console.error("❌ Error fetching messages:", err);
   }
+}
+
+// --- API Endpoint ---
+app.get("/api/highlights", (req, res) => {
+  res.json(cachedMessages);
 });
 
-client.on('messageCreate', (msg) => {
-  if (msg.channel.id === CHANNEL_ID) {
-    messagesCache.unshift({
-      author: msg.author.username,
-      content: msg.content,
-      timestamp: msg.createdAt
-    });
-    messagesCache = messagesCache.slice(0, 20);
-  }
+// --- Start Express Server ---
+app.listen(port, () => {
+  console.log(`🌐 Web server running at http://localhost:${port}`);
 });
 
-app.get('/api/highlights', (req, res) => {
-  res.json(messagesCache);
-});
-
-app.listen(PORT, () =>
-  console.log(`🌐 Web server running at http://localhost:${PORT}`)
-);
-
+// --- Log into Discord ---
 client.login(process.env.DISCORD_TOKEN);
